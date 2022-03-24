@@ -1,12 +1,11 @@
-from flask import Flask, request, render_template
+import logging
 import os
 import random
-import redis
 import socket
 import sys
-import logging
 from datetime import datetime
-
+import redis
+from flask import Flask, render_template, request
 # App Insights
 # TODO: Import required libraries for App Insights
 from opencensus.ext.azure.log_exporter import AzureLogHandler
@@ -26,29 +25,28 @@ from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 # For metrics
 stats = stats_module.stats
 view_manager = stats.view_manager
+
 config_integration.trace_integrations(['logging'])
 config_integration.trace_integrations(['requests'])
 
 # Logging
 logger = logging.getLogger(__name__)
-handler = AzureLogHandler(connection_string='InstrumentationKey=adbcced8-5d42-4add-9b2a-c68b069b96d9')
+handler = AzureLogHandler(connection_string='InstrumentationKey=e2761a82-5ccc-45b6-a714-21d4459c7c33')
 handler.setFormatter(logging.Formatter('%(traceId)s %(spanId)s %(message)s'))
 logger.addHandler(handler)
-# Logging custom Events 
-logger.addHandler(AzureEventHandler(connection_string='InstrumentationKey=adbcced8-5d42-4add-9b2a-c68b069b96d9'))
-# Set the logging level
+logger.addHandler(AzureEventHandler(connection_string='InstrumentationKey=e2761a82-5ccc-45b6-a714-21d4459c7c33'))
 logger.setLevel(logging.INFO)
 
 # # Metrics
 exporter = metrics_exporter.new_metrics_exporter(
 enable_standard_metrics=True,
-connection_string='InstrumentationKey=adbcced8-5d42-4add-9b2a-c68b069b96d9')
+connection_string='InstrumentationKey=e2761a82-5ccc-45b6-a714-21d4459c7c33')
 view_manager.register_exporter(exporter)
 
 # # Tracing
 tracer = Tracer(
  exporter=AzureExporter(
-     connection_string='InstrumentationKey=adbcced8-5d42-4add-9b2a-c68b069b96d9'),
+     connection_string='InstrumentationKey=e2761a82-5ccc-45b6-a714-21d4459c7c33'),
  sampler=ProbabilitySampler(1.0),
 )
 
@@ -57,10 +55,12 @@ app = Flask(__name__)
 # # Requests
 middleware = FlaskMiddleware(
  app,
- exporter=AzureExporter(connection_string="InstrumentationKey=adbcced8-5d42-4add-9b2a-c68b069b96d9"),
+ exporter=AzureExporter(connection_string='InstrumentationKey=e2761a82-5ccc-45b6-a714-21d4459c7c33'),
  sampler=ProbabilitySampler(rate=1.0)
 )
-r = redis.Redis()
+# r = redis.Redis()
+
+
 # Load configurations from environment or config file
 app.config.from_pyfile('config_file.cfg')
 
@@ -81,6 +81,17 @@ else:
 
 # Redis Connection
 r = redis.Redis()
+redis_server = os.environ['REDIS']
+try:
+    if "REDIS_PWD" in os.environ:
+        r = redis.StrictRedis(host=redis_server,
+                        port=6379,
+                        password=os.environ['REDIS_PWD'])
+    else:
+        r = redis.Redis(redis_server)
+    r.ping()
+except redis.ConnectionError:
+    exit('Failed to connect to Redis, terminating.')
 
 # Change title to host name to demo NLB
 if app.config['SHOWHOST'] == "true":
@@ -147,6 +158,6 @@ def index():
 
 if __name__ == "__main__":
     # comment line below when deploying to VMSS
-    app.run() # local
+    # app.run() # local
     # uncomment the line below before deployment to VMSS
-    # app.run(host='0.0.0.0', threaded=True, debug=True) # remote
+    app.run(host='0.0.0.0', threaded=True, debug=True) # remote
